@@ -6,6 +6,8 @@ using Microsoft.Azure.Kinect.Sensor.BodyTracking;
 using Stahle.Utility;
 using UnityEngine.UI;
 using System.Collections;
+using Confluent.Kafka;
+using System.Threading.Tasks;
 
 public class DebugRenderer : PersistantSingleton<DebugRenderer>
 {
@@ -20,6 +22,8 @@ public class DebugRenderer : PersistantSingleton<DebugRenderer>
     Device device;
     BodyTracker tracker;
 #endif
+	ProducerConfig conf;
+	IProducer<string, string> p;
 
     protected override void Awake()
 	{
@@ -38,7 +42,30 @@ public class DebugRenderer : PersistantSingleton<DebugRenderer>
 #if UNITY_EDITOR_WIN
 		InitCamera();
 #endif
+		conf = new ProducerConfig{
+				BootstrapServers = "localhost:9092",
+			};
+		p = new ProducerBuilder<string, string>(conf).Build();
     }
+
+	void producerSendMessage(string message)
+	{
+		try
+		{
+			// Note: Awaiting the asynchronous produce request below prevents flow of execution
+			// from proceeding until the acknowledgement from the broker is received (at the 
+			// expense of low throughput).
+			// https://stackoverflow.com/questions/40872520/whats-the-purpose-of-kafkas-key-value-pair-based-messaging
+			var deliveryReport = p.ProduceAsync( //await
+				"testTopicName", new Message<string, string> { Key = "none", Value = message });
+
+			print($"delivered to: {deliveryReport.Result.TopicPartitionOffset}");
+		}
+		catch (ProduceException<string, string> e)
+		{
+			print($"failed to deliver message: {e.Message} [{e.Error.Code}]");
+		}
+	}
 
 	void MakeBlockMan()
 	{
@@ -141,8 +168,10 @@ public class DebugRenderer : PersistantSingleton<DebugRenderer>
 	
     public void RecordPose_LinkedToToggle()
     {
-		canUpdate = !canUpdate;
-    }
+		// canUpdate = !canUpdate;
+		producerSendMessage("testing");
+
+	}
 
 	void OnToggleValueChanged(bool isOn)
 	{
@@ -166,6 +195,11 @@ public class DebugRenderer : PersistantSingleton<DebugRenderer>
 	{
 		skeletons.Clear();
 	}
+	
+	void print(string msg)
+	{
+		Debug.Log(msg);
+	}
 
 #if UNITY_EDITOR_WIN
     private void OnDisable()
@@ -185,4 +219,5 @@ public class DebugRenderer : PersistantSingleton<DebugRenderer>
 		}
 	}
 #endif
+
 }
