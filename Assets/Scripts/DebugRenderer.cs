@@ -153,11 +153,27 @@ public class DebugRenderer : PersistantSingleton<DebugRenderer>
 				{
 					var joint = this.skeleton.Joints[i];
 					var pos = joint.Position;
-					// Debug.Log("pos: " + (JointId)i + " " + pos[0] + " " + pos[1] + " " + pos[2]);
 					var rot = joint.Orientation;
-					// Debug.Log("rot " + (JointId)i + " " + rot[0] + " " + rot[1] + " " + rot[2] + " " + rot[3]); // Length 4
-					var v = new Vector3(pos[0], -pos[1], pos[2]) * 0.004f;
+
+					var v = new Vector3(pos[0], -pos[1], pos[2]) * 0.004f; 
 					var r = new Quaternion(rot[1], rot[2], rot[3], rot[0]);
+
+					string positionData = "pos " + (JointId)i + " " + pos[0] + " " + pos[1] + " " + pos[2];
+					string rotationData = "rot " + (JointId)i + " " + rot[0] + " " + rot[1] + " " + rot[2] + " " + rot[3]; // Length 4
+
+					print(positionData);
+					//print("pos: " + (JointId)i + " " + v.ToString());
+					print(rotationData);
+					//print("rot " + (JointId)i + " " + r.ToString());
+
+					//pos: ClavicleLeft -107.0713 -74.07419 837.8539
+					//pos: ClavicleLeft (-107.1, 74.1, 837.9)
+					//rot ClavicleLeft 0.7239407 -0.6615711 -0.01385375 -0.1950423
+					//rot ClavicleLeft (-0.7, 0.0, -0.2, 0.7)
+
+					producerSendMessage(skeletons.Count + " " + positionData);
+					producerSendMessage(skeletons.Count + " " + rotationData);
+
 					var obj = blockmanArray[i];
 					obj.transform.SetPositionAndRotation(v, r);
 				}
@@ -168,8 +184,8 @@ public class DebugRenderer : PersistantSingleton<DebugRenderer>
 	
     public void RecordPose_LinkedToToggle()
     {
-		// canUpdate = !canUpdate;
-		producerSendMessage("testing");
+		canUpdate = !canUpdate;
+		//producerSendMessage("testing");
 
 	}
 
