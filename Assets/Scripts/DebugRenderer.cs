@@ -12,16 +12,17 @@ using System.Threading.Tasks;
 public class DebugRenderer : PersistantSingleton<DebugRenderer>
 {
     [HideInInspector]public bool canUpdate = false;
+    [HideInInspector]public bool enableKafka = false;
     [SerializeField] public List<Skeleton> skeletons = new List<Skeleton>();
     [SerializeField] GameObject[] blockmanArray;
     public Toggle recordPoseToggle; //dragged in manually 
     public Renderer renderer;
 	public GameObject blockPrefab;
 	Skeleton skeleton;
-#if UNITY_EDITOR_WIN
+
     Device device;
     BodyTracker tracker;
-#endif
+
 	ProducerConfig conf;
 	IProducer<string, string> p;
 
@@ -39,13 +40,12 @@ public class DebugRenderer : PersistantSingleton<DebugRenderer>
 			go.SetActive(true);
 		}
 		recordPoseToggle.onValueChanged.AddListener(OnToggleValueChanged);
-#if UNITY_EDITOR_WIN
+
 		InitCamera();
-#endif
 		conf = new ProducerConfig{
 				BootstrapServers = "localhost:9092",
 			};
-		p = new ProducerBuilder<string, string>(conf).Build();
+		//p = new ProducerBuilder<string, string>(conf).Build();
     }
 
 	void producerSendMessage(string message)
@@ -84,8 +84,7 @@ public class DebugRenderer : PersistantSingleton<DebugRenderer>
 			blockmanArray[i] = jointCube;
 		}
 	}
-
-#if UNITY_EDITOR_WIN
+	
 	void InitCamera()
     {
         this.device = Device.Open(0);
@@ -103,24 +102,17 @@ public class DebugRenderer : PersistantSingleton<DebugRenderer>
 		GameObject cameraFeed = GameObject.FindWithTag("CameraFeed");
 		renderer = cameraFeed.GetComponent<Renderer>();
 	}
-#endif
 
     void Update()
     {
         if (canUpdate)
         {
-#if UNITY_EDITOR_WIN
             StreamCameraAsTexture();
             CaptureSkeletonsFromCameraFrame();
-#endif
-
-#if UNITY_EDITOR_OSX
-            CaptureSkeletonsFromFakeRandomData();
-#endif
+            //CaptureSkeletonsFromFakeRandomData();
         }
     }
-
-#if UNITY_EDITOR_WIN
+	
 	void StreamCameraAsTexture()
 	{
 		using (Capture capture = device.GetCapture())
@@ -136,9 +128,7 @@ public class DebugRenderer : PersistantSingleton<DebugRenderer>
 			}
 		}
 	}
-#endif
-
-#if UNITY_EDITOR_WIN
+	
     void CaptureSkeletonsFromCameraFrame()
 	{
 		using (var frame = tracker.PopResult())
@@ -171,8 +161,8 @@ public class DebugRenderer : PersistantSingleton<DebugRenderer>
 					//rot ClavicleLeft 0.7239407 -0.6615711 -0.01385375 -0.1950423
 					//rot ClavicleLeft (-0.7, 0.0, -0.2, 0.7)
 
-					producerSendMessage(skeletons.Count + " " + positionData);
-					producerSendMessage(skeletons.Count + " " + rotationData);
+					//producerSendMessage(skeletons.Count + " " + positionData);
+					//producerSendMessage(skeletons.Count + " " + rotationData);
 
 					var obj = blockmanArray[i];
 					obj.transform.SetPositionAndRotation(v, r);
@@ -180,12 +170,15 @@ public class DebugRenderer : PersistantSingleton<DebugRenderer>
 			}
 		}
 	}
-#endif
-	
-    public void RecordPose_LinkedToToggle()
-    {
+
+	public void ToggleBlockman()
+	{
 		canUpdate = !canUpdate;
-		//producerSendMessage("testing");
+	}
+
+	public void ToggleKafka()
+	{
+		enableKafka = !enableKafka;
 
 	}
 
@@ -216,8 +209,7 @@ public class DebugRenderer : PersistantSingleton<DebugRenderer>
 	{
 		Debug.Log(msg);
 	}
-
-#if UNITY_EDITOR_WIN
+	
     private void OnDisable()
     {
         //todo test if only called once at the end of the program, if so, renable the below
@@ -234,6 +226,6 @@ public class DebugRenderer : PersistantSingleton<DebugRenderer>
 			device.Dispose();
 		}
 	}
-#endif
+
 
 }
