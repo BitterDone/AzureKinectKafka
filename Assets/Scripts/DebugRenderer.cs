@@ -1,13 +1,21 @@
-﻿using System;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using Confluent.Kafka;
+using Confluent.Kafka.Admin;
+
 using Microsoft.Azure.Kinect.Sensor;
 using Microsoft.Azure.Kinect.Sensor.BodyTracking;
+
 using Stahle.Utility;
-using UnityEngine.UI;
+
+using System;
 using System.Collections;
-using Confluent.Kafka;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 using System.Threading.Tasks;
+
+using UnityEngine;
+using UnityEngine.UI;
+//using System.Windows.Forms;
 
 public class DebugRenderer : PersistantSingleton<DebugRenderer>
 {
@@ -25,8 +33,9 @@ public class DebugRenderer : PersistantSingleton<DebugRenderer>
 
 	ProducerConfig conf;
 	IProducer<string, string> p;
+	public string bootstrapServer;
 
-    protected override void Awake()
+	protected override void Awake()
 	{
 		Screen.sleepTimeout = SleepTimeout.NeverSleep;
 		base.Awake();
@@ -42,28 +51,77 @@ public class DebugRenderer : PersistantSingleton<DebugRenderer>
 		recordPoseToggle.onValueChanged.AddListener(OnToggleValueChanged);
 
 		InitCamera();
+		StartKafka();
 		conf = new ProducerConfig{
 				BootstrapServers = "localhost:9092",
 			};
-		//p = new ProducerBuilder<string, string>(conf).Build();
-    }
+		p = new ProducerBuilder<string, string>(conf).Build();
+	}
+
+	void StartKafka()
+	{
+		if (bootstrapServer.Length == 0)
+		{
+			bootstrapServer = "localhost:9092";
+		}
+		conf = new ProducerConfig
+		{
+			BootstrapServers = bootstrapServer,
+		};
+		p = new ProducerBuilder<string, string>(conf).Build();
+
+		string command = "d: && cd D://k//k2.3.1 && startServer"; // afka-0.8.0-server ";
+		ExecuteCommand(command);
+	}
+
+	static void ExecuteCommand(string command)
+	{
+		var processInfo = new ProcessStartInfo("cmd.exe", "/c " + command);
+		processInfo.CreateNoWindow = true;
+		processInfo.UseShellExecute = false;
+		processInfo.RedirectStandardError = true;
+		processInfo.RedirectStandardOutput = true;
+
+		var process = Process.Start(processInfo);
+
+		//process.OutputDataReceived += (object sender, DataReceivedEventArgs e) =>
+		//	Console.WriteLine("output>>" + e.Data);
+		//process.BeginOutputReadLine();
+
+		//process.ErrorDataReceived += (object sender, DataReceivedEventArgs e) =>
+		//	Console.WriteLine("error>>" + e.Data);
+		//process.BeginErrorReadLine();
+
+		//process.WaitForExit();
+
+		//Console.WriteLine("ExitCode: {0}", process.ExitCode);
+		//process.Close();
+	}
 
 	void producerSendMessage(string message)
 	{
-		try
+		if (enableKafka)
 		{
-			// Note: Awaiting the asynchronous produce request below prevents flow of execution
-			// from proceeding until the acknowledgement from the broker is received (at the 
-			// expense of low throughput).
-			// https://stackoverflow.com/questions/40872520/whats-the-purpose-of-kafkas-key-value-pair-based-messaging
-			var deliveryReport = p.ProduceAsync( //await
-				"testTopicName", new Message<string, string> { Key = "none", Value = message });
+			try
+			{
+				print(message);
+				// Note: Awaiting the asynchronous produce request below prevents flow of execution
+				// from proceeding until the acknowledgement from the broker is received (at the 
+				// expense of low throughput).
+				// https://stackoverflow.com/questions/40872520/whats-the-purpose-of-kafkas-key-value-pair-based-messaging
+				var deliveryReport = p.ProduceAsync( //await
+					"testTopicName", new Message<string, string> { Key = "none", Value = message });
 
-			print($"delivered to: {deliveryReport.Result.TopicPartitionOffset}");
-		}
-		catch (ProduceException<string, string> e)
-		{
-			print($"failed to deliver message: {e.Message} [{e.Error.Code}]");
+				print($"delivered to: {deliveryReport.Result.TopicPartitionOffset}");
+			}
+			catch (ProduceException<string, string> e)
+			{
+				print($"failed to deliver message: {e.Message} [{e.Error.Code}]");
+			}
+			catch (Exception e)
+			{
+				print($"General exception: {e.Message}");
+			}
 		}
 	}
 
@@ -131,9 +189,11 @@ public class DebugRenderer : PersistantSingleton<DebugRenderer>
 	
     void CaptureSkeletonsFromCameraFrame()
 	{
+		print("CaptureSkeletonsFromCameraFrame");
 		using (var frame = tracker.PopResult())
 		{
-			Debug.LogFormat("{0} bodies found.", frame.NumBodies);
+			//Debug.LogFormat("{0} bodies found.", frame.NumBodies);
+			print($"{frame.NumBodies} bodies found.");
 			if (frame.NumBodies > 0)
 			{
 				var bodyId = frame.GetBodyId(0);
@@ -151,9 +211,9 @@ public class DebugRenderer : PersistantSingleton<DebugRenderer>
 					string positionData = "pos " + (JointId)i + " " + pos[0] + " " + pos[1] + " " + pos[2];
 					string rotationData = "rot " + (JointId)i + " " + rot[0] + " " + rot[1] + " " + rot[2] + " " + rot[3]; // Length 4
 
-					print(positionData);
+					//print(positionData);
 					//print("pos: " + (JointId)i + " " + v.ToString());
-					print(rotationData);
+					//print(rotationData);
 					//print("rot " + (JointId)i + " " + r.ToString());
 
 					//pos: ClavicleLeft -107.0713 -74.07419 837.8539
@@ -161,8 +221,8 @@ public class DebugRenderer : PersistantSingleton<DebugRenderer>
 					//rot ClavicleLeft 0.7239407 -0.6615711 -0.01385375 -0.1950423
 					//rot ClavicleLeft (-0.7, 0.0, -0.2, 0.7)
 
-					//producerSendMessage(skeletons.Count + " " + positionData);
-					//producerSendMessage(skeletons.Count + " " + rotationData);
+					producerSendMessage(skeletons.Count + " " + positionData);
+					producerSendMessage(skeletons.Count + " " + rotationData);
 
 					var obj = blockmanArray[i];
 					obj.transform.SetPositionAndRotation(v, r);
@@ -207,7 +267,7 @@ public class DebugRenderer : PersistantSingleton<DebugRenderer>
 	
 	void print(string msg)
 	{
-		Debug.Log(msg);
+		UnityEngine.Debug.Log(msg);
 	}
 	
     private void OnDisable()
